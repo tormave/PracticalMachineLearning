@@ -5,9 +5,11 @@ date: "October 23, 2016"
 output: html_document
 ---
 ## Summary
-The data set from http://groupware.les.inf.puc-rio.br/har quantifies how well 6 participants execute weight training exercises. The task is predict one of 5 ways (marked A to E) to execute exerices based on accelerometer data from sensors on the belt, forearm, arm, and a light dumbell
+The data set from http://groupware.les.inf.puc-rio.br/har quantifies how well 6 participants execute weight training exercises. The task is predict one of 5 ways (marked A to E) to execute exerices based on accelerometer data from sensors on the belt, forearm, arm, and on a light dumbell used to perform the exercises.
 
-First some necessary libraries and the data is loaded.
+After data is cleaned, three prediction models are compared by applying them to the training data set before the winning model is applied to the supplied test data set. Winning model is a random forest, which achieves 0% out-of-sample error rate.
+
+In the first code chunk some necessary libraries and the data is loaded.
 
 ```r
 library(knitr)
@@ -18,6 +20,7 @@ library(caret)
 library(mlbench)
 library(randomForest)
 library(rpart)
+library(doMC)
 
 rm(list = ls())
 download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",
@@ -32,8 +35,16 @@ testing = read.csv("pml-testing.csv", header = TRUE, na.strings = c("NA",""))
 
 set.seed(10000)
 ```
-## Analysis
-The data contained timestamp related data as well as row identifiers, which are deleted in the code chunk below. In addition we can get rid of the columns, which had a high degree of NA and empty values. Finally, the training data set is divided into training and validation sets.
+## Data analysis and pre-processing
+The data contained timestamp related data as well as row identifiers, which are deleted in the code chunk below. In addition we can get rid of the columns, which had a high degree of NA and empty values. Finally, the training data set is divided into training and validation sets. With these actions, the number of predictors in the data set drops from 159 to 52 (which still is too many to plot)
+
+```r
+dim(training)
+```
+
+```
+## [1] 19622   160
+```
 
 ```r
 # drop non-predictive columns
@@ -41,12 +52,20 @@ training <- training[, -which(names(training) %in% c("X", "user_name", "raw_time
                                                      "new_window", "num_window"))]
 # drop columns with over 10% empty values
 training <- training[, -which(colSums(is.na(training)) > .1 * nrow(training))]
+dim(training)
+```
 
+```
+## [1] 19622    53
+```
+
+```r
 # sub-divide training set further to training and validating sets
 sub_train <- createDataPartition(training$classe, p = 0.7, list = FALSE)
 training <- training[sub_train, ]
 validating <- training[-sub_train, ]
 ```
+## Model comparison
 Now it's possible to start training some models, and cross-validating against the validation set split in the previous code chunk.
 
 ```r
@@ -61,25 +80,26 @@ pred_lda <- predict(fit_lda, validating)
 conf_lda <- confusionMatrix(validating$classe, pred_lda)
 
 ## random forest
+registerDoMC(cores = 4) # use all CPU cores, RF takes forever otherwise...
 fit_rf <- train(classe ~ ., data = training, method = "rf")
 pred_rf <- predict(fit_rf, validating)
 conf_rf <- confusionMatrix(validating$classe, pred_rf)
 
 res_df <- data.frame(model = c("rpart", "lda", "rf"),
-                     accuracy = c(double(conf_rp$overall["Accuracy"]),
-                                  double(conf_lda$overall["Accuracy"]),
-                                  double(conf_rf$overall["Accuracy"])))
+                     accuracy = c(conf_rp$overall["Accuracy"],
+                                 conf_lda$overall["Accuracy"],
+                                 conf_rf$overall["Accuracy"]))
 res_df$out_of_sample_error <- 1 - res_df$accuracy
 res_df
 ```
 
 ```
-##   model accuracy out_of_sample_error
-## 1 rpart        0                   1
-## 2   lda        0                   1
-## 3    rf        0                   1
+##   model  accuracy out_of_sample_error
+## 1 rpart 0.4983067           0.5016933
+## 2   lda 0.7031930           0.2968070
+## 3    rf 1.0000000           0.0000000
 ```
-Based on accuracy and out of sample errors, the most accurate prediction seems to be the random forest. Some deeper analysis into the differences:
+Based on accuracy and out of sample errors, the most accurate prediction is achieved with the random forest. It also takes by far the most amount of computational effort to calculate. Some deeper analysis into the differences between the models:
 
 ```r
 conf_rf$table
@@ -127,7 +147,7 @@ bwplot(results)
 
 ![plot of chunk unnamed-chunk-4](figure/unnamed-chunk-4-1.png)
 ## Prediction
-The most accurate prediction is clearly a random forest, which is finally applied to the supplied test set. 
+The most accurate prediction is clearly the random forest, which is finally applied to the supplied test set for the prediction. 
 
 ```r
 pred_final <- predict(fit_rf, testing)
