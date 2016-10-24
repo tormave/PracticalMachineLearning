@@ -209,30 +209,6 @@ hr {
 
 <p>In the first code chunk some necessary libraries and the data is loaded.</p>
 
-<pre><code class="r">library(knitr)
-library(markdown)
-library(ggplot2)
-library(dplyr)
-library(caret)
-library(mlbench)
-library(randomForest)
-library(rpart)
-library(doMC)
-
-rm(list = ls())
-download.file(&quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;,
-              &quot;pml-training.csv&quot;,
-              method = &quot;curl&quot;)
-training = read.csv(&quot;pml-training.csv&quot;, header = TRUE, na.strings = c(&quot;NA&quot;,&quot;&quot;))
-
-download.file(&quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv&quot;,
-              &quot;pml-testing.csv&quot;,
-              method = &quot;curl&quot;)
-testing = read.csv(&quot;pml-testing.csv&quot;, header = TRUE, na.strings = c(&quot;NA&quot;,&quot;&quot;))
-
-set.seed(10000)
-</code></pre>
-
 <h2>Data analysis and pre-processing</h2>
 
 <p>The data contained timestamp related data as well as row identifiers, which are deleted in the code chunk below. In addition we can get rid of the columns, which had a high degree of NA and empty values. Finally, the training data set is divided into training and validation sets. With these actions, the number of predictors in the data set drops from 159 to 52 (which still is too many to plot)</p>
@@ -275,7 +251,7 @@ pred_lda &lt;- predict(fit_lda, validating)
 conf_lda &lt;- confusionMatrix(validating$classe, pred_lda)
 
 ## random forest
-registerDoMC(cores = 4) # use all CPU cores, RF takes forever otherwise...
+registerDoMC(cores = 7) # use more CPU cores, RF takes forever otherwise...
 fit_rf &lt;- train(classe ~ ., data = training, method = &quot;rf&quot;)
 pred_rf &lt;- predict(fit_rf, validating)
 conf_rf &lt;- confusionMatrix(validating$classe, pred_rf)

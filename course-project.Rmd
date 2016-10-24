@@ -10,7 +10,7 @@ The data set from http://groupware.les.inf.puc-rio.br/har quantifies how well 6 
 After data is cleaned, three prediction models are compared by applying them to the training data set before the winning model is applied to the supplied test data set. Winning model is a random forest, which achieves 0% out-of-sample error rate.
 
 In the first code chunk some necessary libraries and the data is loaded.
-```{r message = FALSE, warning = FALSE}
+```{r message = FALSE, warning = FALSE, echo = FALSE}
 library(knitr)
 library(markdown)
 library(ggplot2)
@@ -36,7 +36,7 @@ set.seed(10000)
 ```
 ## Data analysis and pre-processing
 The data contained timestamp related data as well as row identifiers, which are deleted in the code chunk below. In addition we can get rid of the columns, which had a high degree of NA and empty values. Finally, the training data set is divided into training and validation sets. With these actions, the number of predictors in the data set drops from 159 to 52 (which still is too many to plot)
-```{r}
+```{r message = TRUE, warning = FALSE, echo = TRUE}
 dim(training)
 # drop non-predictive columns
 training <- training[, -which(names(training) %in% c("X", "user_name", "raw_timestamp_part_1",                                                           "raw_timestamp_part_2", "cvtd_timestamp",
@@ -52,8 +52,7 @@ validating <- training[-sub_train, ]
 ```
 ## Model comparison
 Now it's possible to start training some models, and cross-validating against the validation set split in the previous code chunk.
-```{r message = FALSE, warning = FALSE}
-
+```{r message = FALSE, warning = FALSE, echo = TRUE}
 ## classification tree
 fit_rp <- train(classe ~ ., data = training, method = "rpart")
 pred_rp <- predict(fit_rp, validating)
@@ -78,7 +77,7 @@ res_df$out_of_sample_error <- 1 - res_df$accuracy
 res_df
 ```
 Based on accuracy and out of sample errors, the most accurate prediction is achieved with the random forest. It also takes by far the most amount of computational effort to calculate. Some deeper analysis into the differences between the models:
-``` {r}
+``` {r message = TRUE, warning = FALSE, echo = TRUE}
 conf_rf$table
 results <- resamples(list(RP = fit_rp, LD = fit_lda, RF = fit_rf))
 summary(results)
@@ -86,7 +85,7 @@ bwplot(results)
 ```
 ## Prediction
 The most accurate prediction is clearly the random forest, which is finally applied to the supplied test set for the prediction. 
-``` {r}
+``` {r message = TRUE, warning = FALSE, echo = TRUE}
 pred_final <- predict(fit_rf, testing)
 pred_final
 ```
