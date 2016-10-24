@@ -1,0 +1,89 @@
+---
+title: "Practical Machine Learning - Course Project"
+author: "Vesa Tormanen"
+date: "October 23, 2016"
+output: html_document
+---
+## Summary
+The data set from http://groupware.les.inf.puc-rio.br/har quantifies how well 6 participants execute weight training exercises. The task is predict one of 5 ways (marked A to E) to execute exerices based on accelerometer data from sensors on the belt, forearm, arm, and a light dumbell
+
+First some necessary libraries and the data is loaded.
+```{r message = FALSE, warning = FALSE}
+library(knitr)
+library(markdown)
+library(ggplot2)
+library(dplyr)
+library(caret)
+library(mlbench)
+library(randomForest)
+library(rpart)
+library(doMC)
+
+rm(list = ls())
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",
+              "pml-training.csv",
+              method = "curl")
+training = read.csv("pml-training.csv", header = TRUE, na.strings = c("NA",""))
+
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",
+              "pml-testing.csv",
+              method = "curl")
+testing = read.csv("pml-testing.csv", header = TRUE, na.strings = c("NA",""))
+
+set.seed(10000)
+```
+## Data analysis pre-processing
+The data contained timestamp related data as well as row identifiers, which are deleted in the code chunk below. In addition we can get rid of the columns, which had a high degree of NA and empty values. Finally, the training data set is divided into training and validation sets. With these actions, the number of predictors in the data set drops from 159 to 52.
+```{r}
+dim(training)
+# drop non-predictive columns
+training <- training[, -which(names(training) %in% c("X", "user_name", "raw_timestamp_part_1",                                                           "raw_timestamp_part_2", "cvtd_timestamp",
+                                                     "new_window", "num_window"))]
+# drop columns with over 10% empty values
+training <- training[, -which(colSums(is.na(training)) > .1 * nrow(training))]
+dim(training)
+# sub-divide training set further to training and validating sets
+sub_train <- createDataPartition(training$classe, p = 0.7, list = FALSE)
+training <- training[sub_train, ]
+validating <- training[-sub_train, ]
+```
+## Model comparison
+Now it's possible to start training some models, and cross-validating against the validation set split in the previous code chunk.
+```{r message = FALSE, warning = FALSE}
+
+## classification tree
+fit_rp <- train(classe ~ ., data = training, method = "rpart")
+pred_rp <- predict(fit_rp, validating)
+conf_rp <- confusionMatrix(validating$classe, pred_rp)
+
+## linear discriminant analysis
+fit_lda <- train(classe ~ ., data = training, method = "lda")
+pred_lda <- predict(fit_lda, validating)
+conf_lda <- confusionMatrix(validating$classe, pred_lda)
+
+## random forest
+registerDoMC(cores = 4) # use all CPU cores, RF takes forever otherwise...
+fit_rf <- train(classe ~ ., data = training, method = "rf")
+pred_rf <- predict(fit_rf, validating)
+conf_rf <- confusionMatrix(validating$classe, pred_rf)
+
+res_df <- data.frame(model = c("rpart", "lda", "rf"),
+                     accuracy = c(double(conf_rp$overall["Accuracy"]),
+                                  double(conf_lda$overall["Accuracy"]),
+                                  double(conf_rf$overall["Accuracy"])))
+res_df$out_of_sample_error <- 1 - res_df$accuracy
+res_df
+```
+Based on accuracy and out of sample errors, the most accurate prediction seems to be the random forest. Some deeper analysis into the differences:
+``` {r}
+conf_rf$table
+results <- resamples(list(RP = fit_rp, LD = fit_lda, RF = fit_rf))
+summary(results)
+bwplot(results)
+```
+## Prediction
+The most accurate prediction is clearly a random forest, which is finally applied to the supplied test set. 
+``` {r}
+pred_final <- predict(fit_rf, testing)
+pred_final
+```
